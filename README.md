@@ -4,16 +4,14 @@
 ##  What is it?
 ##  -----------
 Several youtube files haven't subtiles ( for example for very long videos ). This project take
-youtube video and transcribe, ans save result into WEBVTT subtitles.
+youtube video and transcribe, then save result into WEBVTT subtitles.
 
-This project AWS services like _S3_ and _AWS Amazon Transcribe_ and require AWS account.
-Required:
+This project use AWS services like _S3_ and _AWS Amazon Transcribe_ and require AWS account.
+Required soft :
 
   + youtube-dl
   + ffmpeg
   + awscli
-  + S3 folder
-
 
 
 ##  The Latest Version
