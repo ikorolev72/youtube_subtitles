@@ -16,7 +16,14 @@ Required soft :
 
 ##  The Latest Version
 
-	version 1.0 2018.07.31
+	version 1.1 2018.07.31
+
+##  Whats new
+
+	version 1.1 2018.08.01
+  + Fixed exit codes for errors.
+  + Remove temporary files
+
 
 
 ##  How to install
@@ -34,12 +41,12 @@ sudo ln -s /usr/share/ffmpeg/ffmpeg-4.0.2-64bit-static/ffmpeg /usr/bin/ffmpeg
 sudo ln -s /usr/share/ffmpeg/ffmpeg-4.0.2-64bit-static/ffprobe /usr/bin/ffprobe
 
 wget http://docs.aws.amazon.com/aws-sdk-php/v3/download/aws.phar
-mv aws.phar /home/ubuntu/php/aws.phar # this path must be defined in php file
+mv aws.phar /home/ubuntu/php/ # this path is the same where youtube_subtitles.php script
 ```
 
 ## How to run
 ```
-$ php 3.php -i 4LGe265pwvU  -s /tmp/4LGe265pwvU.vtt
+$ php youtube_subtitles.php -i 4LGe265pwvU  -s /tmp/4LGe265pwvU.vtt
 Info: Start download audio for youtube_id 4LGe265pwvU
 Info: Convert audio track to wav format
 Info: Upload wav audio to S3

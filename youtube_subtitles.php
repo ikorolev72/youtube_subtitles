@@ -1,16 +1,25 @@
 <?php
 /* korolev-ia(at)yandex.ru
+https://github.com/ikorolev72/youtube_subtitles
 Transcribe youtube videos with AWS Amazon Transcribe and save result into vtt subtitles format
+v1.1
  */
 
-require '/home/ubuntu/php/aws.phar';
+$basedir=dirname(__FILE__);
+
+require "$basedir/aws.phar";
 //require 'vendor/autoload.php';
 
 use Aws\TranscribeService\TranscribeServiceClient;
+$sharedConfig = [
+    'profile' => 'default',
+    'region' => 'us-west-2',
+    'version' => 'latest',
+];
 
 $s3BucketIn = 'freesound';
 $s3BucketOut = 'freesound';
-//   $s3BucketIn='https://s3-us-west-2.amazonaws.com/freesound/test/in';
+//$s3BucketIn='https://s3-us-west-2.amazonaws.com/freesound/test/in';
 //$s3BucketOut='https://s3-us-west-2.amazonaws.com/freesound/test/out';
 
 $youtube_dl = "youtube-dl";
@@ -21,8 +30,8 @@ $debug = false;
 //
 // converting to subtitles variables
 $maxLineLength = 40;
-$maxSubtitlesShow = 4;
-$minSubtitlesShow = 1;
+$maxSubtitlesShow = 4; // in sec
+$minSubtitlesShow = 1; // in sec
 $cps = 18; // chars per second
 // end of converting to subtitles variables
 //
@@ -48,6 +57,8 @@ $s3FileName = "test/in/$youtubeId.wav";
 $tmpAudio1 = "$tmpDir/$youtubeId.mp3";
 $tmpAudio2 = "$tmpDir/$youtubeId.wav";
 
+$tempFilesForDelete=array( $tmpAudio1, $tmpAudio2); 
+
 if (!$debug) {
 // download from YT and convert into mp3
     writeToLog("Info: Start download audio for youtube_id $youtubeId");
@@ -55,6 +66,7 @@ if (!$debug) {
     $cmd = "$youtube_dl --newline -f bestaudio/140/251/171/250/249/worstaudio --extract-audio --audio-format mp3 -o \"$tmpAudio1\" \"https://www.youtube.com/watch?v=$youtubeId\"";
     if (!doExec($cmd)) {
         writeToLog("Error. Cannot download audio stream for youtube_id $youtubeId to $tmpAudio1");
+        deleteTempFiles( $tempFilesForDelete) ;
         exit(2);
     }
 
@@ -64,19 +76,13 @@ if (!$debug) {
     $cmd = "$ffmpeg -y -loglevel warning -i $tmpAudio1 -vn -f wav $tmpAudio2";
     if (!doExec($cmd)) {
         writeToLog("Error. Cannot convert $tmpAudio1 to $tmpAudio2");
-        exit(2);
+        deleteTempFiles( $tempFilesForDelete) ;
+        exit(3);
     }
 }
 
 // upload to s3
-
 writeToLog("Info: Upload wav audio to S3");
-
-$sharedConfig = [
-    'profile' => 'default',
-    'region' => 'us-west-2',
-    'version' => 'latest',
-];
 $sdk = new Aws\Sdk($sharedConfig);
 $s3Client = $sdk->createS3();
 
@@ -95,7 +101,8 @@ try {
 }
 if (!isset($result["@metadata"]["effectiveUri"])) {
     writeToLog('Error: Cannot get the effectiveUri in AWS answer');
-    exit(2);
+    deleteTempFiles( $tempFilesForDelete) ;
+    exit(4);
 }
 
 // do Transcription
@@ -126,7 +133,9 @@ try {
         echo $result;
     }
 } catch (Exception $e) {
-    writeToLog('Error: ' . $e->getMessage());
+    writeToLog('Error: Cannot start transcripion job ' . $e->getMessage());
+    deleteTempFiles( $tempFilesForDelete) ;
+    exit(5);
 }
 
 writeToLog("Info: Check status of transcription job");
@@ -137,12 +146,14 @@ while (true) {
         ]);
         if (!isset($result["TranscriptionJob"]["TranscriptionJobStatus"])) {
             writeToLog("Error: Cannot get status of transcript job $TranscriptionJobName");
-            exit(3);
+            deleteTempFiles( $tempFilesForDelete) ;
+            exit(6);
         }
 
         if ($result["TranscriptionJob"]["TranscriptionJobStatus"] === "FAILED") {
             writeToLog("Error: Job $TranscriptionJobName failed." . $result["TranscriptionJob"]["FailureReason"]);
-            exit(3);
+            deleteTempFiles( $tempFilesForDelete) ;
+            exit(7);
         }
         if ($result["TranscriptionJob"]["TranscriptionJobStatus"] === "COMPLETED") {
             writeToLog("Info: Job $TranscriptionJobName completed! Output file: " . $result["TranscriptionJob"]["Transcript"]["TranscriptFileUri"]);
@@ -151,7 +162,9 @@ while (true) {
         writeToLog("Info: Job $TranscriptionJobName in progress");
         sleep(10);
     } catch (Exception $e) {
-        writeToLog('Error: ' . $e->getMessage());
+        writeToLog('Error: Cannot get status transcription job .' . $e->getMessage());
+        deleteTempFiles( $tempFilesForDelete) ;
+        exit(8);
     }
 }
 
@@ -161,6 +174,8 @@ while (true) {
 writeToLog("Info: Download transcribed json file from S3 to local fs");
 $s3UriArray = parseS3Uri($sharedConfig, $result["TranscriptionJob"]["Transcript"]["TranscriptFileUri"]);
 $jsonFile = "$tmpDir/" . $s3UriArray["key"];
+$tempFilesForDelete[]=$jsonFile;
+
 try {
     $result = $s3Client->getObject([
         'Bucket' => $s3UriArray["bucket"],
@@ -172,6 +187,8 @@ try {
     }
 } catch (Exception $e) {
     writeToLog("Error: Cannot download S3 file " . $e->getMessage());
+    deleteTempFiles( $tempFilesForDelete) ;
+    exit(9);
 }
 
 // decode json file
@@ -181,7 +198,8 @@ try {
     $json = json_decode($string, true);
 } catch (Exception $e) {
     writeToLog('Error: Cannot parse json file ' . $e->getMessage());
-    exit(1);
+    deleteTempFiles( $tempFilesForDelete) ;
+    exit(10);
 }
 
 // make subtitles from json
@@ -194,9 +212,11 @@ try {
     file_put_contents($vttFilename, $vtt);
 } catch (Exception $e) {
     writeToLog("Error: Cannot save file $vttFilename " . $e->getMessage());
-    exit(1);
+    deleteTempFiles( $tempFilesForDelete) ;
+    exit(11);
 }
 writeToLog("Info: All done. Output subtitles file $vttFilename");
+deleteTempFiles( $tempFilesForDelete) ;
 exit(0);
 
 
@@ -206,6 +226,18 @@ exit(0);
 Function 
 
 */
+
+
+function deleteTempFiles( $tempFilesForDelete) {
+    foreach( $tempFilesForDelete as $filename) {
+        if( file_exists($filename)) {
+            @unlink( $filename);
+        }
+    }
+    return(true);
+}
+
+
 function parseS3Uri($sharedConfig, $s3Uri)
 {
     $s3Parser = new Aws\S3\S3UriParser($sharedConfig);
@@ -374,5 +406,5 @@ function help($msg = '')
   -s subtitles filename
 
   Example: $script -i 4LGe205pwc -s /tmp/4LGe205pwc.vtt" . PHP_EOL);
-    exit(-1);
+    exit(1);
 }
