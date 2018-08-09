@@ -16,9 +16,12 @@ Required soft :
 
 ##  The Latest Version
 
-	version 1.1 2018.07.31
+	version 1.3 2018.08.09
 
 ##  Whats new
+	version 1.3 2018.08.09
+  + Added scripts `list_s3.php` and `youtube_s3.php`
+  + Fixed bugs
 
 	version 1.1 2018.08.01
   + Fixed exit codes for errors.
@@ -66,7 +69,7 @@ Info: All done. Output subtitles file /tmp/4LGe265pwvU.vtt
 
 ##  Bugs
 ##  ------------
-	1. Do not remove temporary files
+
 
 
 

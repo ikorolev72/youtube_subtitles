@@ -51,7 +51,7 @@ if (!is_dir($tmpDir)) {
     @mkdir($tmpDir);
 }
 
-$options = getopt('i:f:h::n::m::s::a::l::');
+$options = getopt('i:f:h::n::m:s::a::l:');
 
 $youtubeId = isset($options['i']) ? getYoutubeIdFromUrl($options['i']) : false;
 $outputFileMask = isset($options['m']) ? $options['m'] : $youtubeId;
@@ -80,7 +80,7 @@ if (!$formats) {
 $youtubeDlOptions = " -f $formats ";
 if( $writeAutoSubtitles || $writeSubtitles ) {
   $youtubeDlOptions.=($writeSubtitles) ? " --write-sub " :  " --write-auto-sub ";
-  $youtubeDlOptions.=" --sub-lang $lang ";
+  $youtubeDlOptions.=" --sub-lang $language ";
 }
 
 
@@ -99,12 +99,14 @@ if (!doExec($cmd)) {
 $sdk = new Aws\Sdk($sharedConfig);
 $s3Client = $sdk->createS3();
 
-foreach (glob("$tmpDir/${youtubeId}.*") as $file) {
+foreach (glob("$tmpDir/${outputFileMask}.*") as $file) {
     if (!is_file($file)) {
         continue;
     }
     $pathParts = pathinfo($file);
-    $s3FileName = "${youtubeId}." . $pathParts['extension'];
+//    $s3FileName = "${youtubeId}." . $pathParts['extension'];
+    $s3FileName =  $pathParts['basename'];
+    
 
 // upload to s3
     writeToLog("Info: Upload $file to S3");

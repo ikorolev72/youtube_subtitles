@@ -11,6 +11,6 @@ tmp/*
 html/media/*
 data/log/*
 data/var/*
-.aws/*
+.aws/credentials
 
 
