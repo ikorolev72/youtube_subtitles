@@ -29,7 +29,8 @@ Required soft :
 ##  How to install
 For Ubuntu ( or any Debian distributive):
 ```
-apt-get -y install php php-xml python
+sudo apt-get update
+sudo apt-get -y install php php-xml python awscli
 sudo curl -L https://yt-dl.org/downloads/latest/youtube-dl -o /usr/local/bin/youtube-dl
 sudo chmod a+rx /usr/local/bin/youtube-dl
 

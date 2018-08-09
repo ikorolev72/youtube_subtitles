@@ -9,13 +9,26 @@ $basedir = dirname(__FILE__);
 
 require "$basedir/aws.phar";
 //require 'vendor/autoload.php';
-
-use Aws\TranscribeService\TranscribeServiceClient;
+/*
 $sharedConfig = [
     'profile' => 'default',
     'region' => 'us-west-2',
     'version' => 'latest',
 ];
+*/
+use Aws\Credentials\CredentialProvider;
+$provider = CredentialProvider::ini();
+$profile = 'default';
+$path = "$basedir/.aws/credentials";
+$provider = CredentialProvider::ini($profile, $path);
+$provider = CredentialProvider::memoize($provider);
+$sharedConfig = [
+    'region' => 'us-west-2',
+    'version' => 'latest',
+    'credentials' => $provider
+];
+
+
 
 $s3BucketIn = 'freesound';
 $s3BucketOut = 'freesound';
@@ -38,11 +51,16 @@ if (!is_dir($tmpDir)) {
     @mkdir($tmpDir);
 }
 
-$options = getopt('i:b:h::n::');
+$options = getopt('i:f:h::n::m::s::a::l::');
 
-$youtubeId = isset($options['i']) ? $options['i'] : '';
-$youtubeDlOptions = isset($options['b']) ? $options['b'] : '';
+$youtubeId = isset($options['i']) ? getYoutubeIdFromUrl($options['i']) : false;
+$outputFileMask = isset($options['m']) ? $options['m'] : $youtubeId;
+$formats = isset($options['f']) ? $options['f'] : false;
+$language = isset($options['l']) ? $options['l'] : "en";
+
 $doNotRemoveFiles = isset($options['n']) ? true : false;
+$writeSubtitles = isset($options['s']) ? true: false;
+$writeAutoSubtitles = isset($options['a']) ? true : false;
 $help = isset($options['h']) ? $options['h'] : '';
 
 if ($help) {
@@ -50,24 +68,28 @@ if ($help) {
 }
 
 if (!$youtubeId) {
-    help("Need youtube_id ( -i ) parameter");
+    help("Need youtube_id ( -i ) parameter (eg '-i pMXv2YR64R8')");
+}
+if (!$formats) {
+  help("Need yotube-dl formats ( -f ) parameter ( eg '-f 22' or '-f 251,249') ");
+}
+if (!$formats) {
+  help("Need yotube-dl formats ( -f ) parameter ( eg '-f 22' or '-f 251,249' ");
 }
 
-// if used youtube url
-if (getYoutubeIdFromUrl($youtubeId)) {
-    $youtubeId = getYoutubeIdFromUrl($youtubeId);
+$youtubeDlOptions = " -f $formats ";
+if( $writeAutoSubtitles || $writeSubtitles ) {
+  $youtubeDlOptions.=($writeSubtitles) ? " --write-sub " :  " --write-auto-sub ";
+  $youtubeDlOptions.=" --sub-lang $lang ";
 }
 
-if (!$youtubeDlOptions) {
-    help("Need youtube-dl options ( -b ) parameter");
-}
 
 $tempFilesForDelete = array();
 
 // download from YT
 writeToLog("Info: Start download for youtube_id $youtubeId");
 
-$cmd = "$youtube_dl --newline $youtubeDlOptions -o \"$tmpDir/%(id)s.%(ext)s\" \"https://www.youtube.com/watch?v=$youtubeId\"";
+$cmd = "$youtube_dl --newline $youtubeDlOptions -o \"$tmpDir/$outputFileMask.%(ext)s\" \"https://www.youtube.com/watch?v=$youtubeId\"";
 if (!doExec($cmd)) {
     writeToLog("Error. Cannot download files youtube_id $youtubeId to $tmpDir");
     deleteTempFiles($tempFilesForDelete);
@@ -214,23 +236,30 @@ function help($msg = '')
         "$msg
 
   This script download from youtube and upload it to s3
-	Usage: $script -i youtube_id -b 'youtube-dl options' [-n] [-h]
+	Usage: $script -i youtube_id -f formats [-s|a] [-l lang] [-m filemask] [-n] [-h]
 	where:
   -h this help
   -i youtube_id or youtube_url
-  -b youtube download options, like ' -f 249 --write-auto-sub --sub-lang en '
-  -n do not remove downloaded files from local filesystem
-
-  Example: 
-  $script -i https://www.youtube.com/watch?v=nfGQyKrRpyM -b ' -f 22 --write-auto-sub --sub-lang en '
-  $script -i 4LGe205pwc -b ' -f 249 --write-auto-sub --sub-lang en ' -n " . PHP_EOL);
+  -f yotube-dl formats ( -f ) parameter ( eg '-f 22' or '-f 251,249') 
+  -a download automatic captions ( auto subtitles ) ( optional, mutually exclusive with -s, default: without subtitles)
+  -s download subtitles ( optional, mutually exclusive with -a, default: without subtitles  )
+  -l subtitles language ( optional, default: 'en' )
+  -m output file mask ( optional, default: youtube_id )
+  -n do not remove downloaded files from local filesystem ( optional, default: remove local files)
+  Example:
+  $script -i https://www.youtube.com/watch?v=nfGQyKrRpyM  -f 22 -a -l en -m \'favorit_video_12345\' -n'" . PHP_EOL);
     exit(1);
 }
+
+
 
 function getYoutubeIdFromUrl($url)
 {
     // https://www.youtube.com/watch?v=nfGQyKrRpyM
     if (preg_match("/v=([-\w]+)/", $url, $matches)) {
+        return ($matches[1]);
+    }
+    if (preg_match("/^([-\w]+)$/", $url, $matches)) {
         return ($matches[1]);
     }
     return (false);

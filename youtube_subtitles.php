@@ -2,7 +2,7 @@
 /* korolev-ia(at)yandex.ru
 https://github.com/ikorolev72/youtube_subtitles
 Transcribe youtube videos with AWS Amazon Transcribe and save result into vtt subtitles format
-v1.1
+v1.2
  */
 
 $basedir=dirname(__FILE__);
@@ -11,10 +11,16 @@ require "$basedir/aws.phar";
 //require 'vendor/autoload.php';
 
 use Aws\TranscribeService\TranscribeServiceClient;
+use Aws\Credentials\CredentialProvider;
+$provider = CredentialProvider::ini();
+$profile = 'default';
+$path = "$basedir/.aws/credentials";
+$provider = CredentialProvider::ini($profile, $path);
+$provider = CredentialProvider::memoize($provider);
 $sharedConfig = [
-    'profile' => 'default',
     'region' => 'us-west-2',
     'version' => 'latest',
+    'credentials' => $provider
 ];
 
 $s3BucketIn = 'freesound';
@@ -38,7 +44,8 @@ $cps = 18; // chars per second
 
 $options = getopt('s:i:h::');
 
-$youtubeId = isset($options['i']) ? $options['i'] : '';
+
+$youtubeId = isset($options['i']) ? getYoutubeIdFromUrl($options['i']) : false;
 $vttFilename = isset($options['s']) ? $options['s'] : '';
 $help = isset($options['h']) ? $options['h'] : '';
 
@@ -402,9 +409,21 @@ function help($msg = '')
 	Usage: $script -i youtube_id -s subtitles.vtt [-h]
 	where:
   -h this help
-  -i youtube_id
+  -i youtube_id or youtube_url
   -s subtitles filename
 
   Example: $script -i 4LGe205pwc -s /tmp/4LGe205pwc.vtt" . PHP_EOL);
     exit(1);
+}
+
+function getYoutubeIdFromUrl($url)
+{
+    // https://www.youtube.com/watch?v=nfGQyKrRpyM
+    if (preg_match("/v=([-\w]+)/", $url, $matches)) {
+        return ($matches[1]);
+    }
+    if (preg_match("/^([-\w]+)$/", $url, $matches)) {
+        return ($matches[1]);
+    }
+    return (false);
 }
